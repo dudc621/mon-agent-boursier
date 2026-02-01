@@ -4,56 +4,38 @@ import google.generativeai as genai
 from groq import Groq
 import pandas as pd
 from datetime import datetime
-import time
 
-# Configuration des IA
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-groq_client = Groq(api_key=os.environ["GROQ_API_KEY"])
+print("--- DEMARRAGE DU DIAGNOSTIC ---")
+
+# Vérification des clés
+gemini_key = os.environ.get("GEMINI_API_KEY")
+groq_key = os.environ.get("GROQ_API_KEY")
+
+if not gemini_key or not groq_key:
+    print("❌ ERREUR : Les clés API sont manquantes dans GitHub Secrets !")
+else:
+    print("✅ Clés API détectées.")
 
 def lancer_analyse(ticker):
-    print(f"Lancement de l'analyse pour {ticker}...")
-    
+    print(f"\n🔍 Tentative sur : {ticker}")
     try:
-        # 1. Récupérer les données boursières
+        # 1. Test Bourse
         stock = yf.Ticker(ticker)
         prix = stock.history(period="1d")['Close'].iloc[-1]
-        news = stock.news[:2]
+        print(f"📈 Prix récupéré : {prix}$")
 
-        # 2. Charger la mémoire (si le fichier existe)
-        try:
-            memoire = pd.read_csv('memoire.csv').tail(5).to_string()
-        except:
-            memoire = "Aucun historique disponible."
-
-        prompt = f"Action: {ticker}, Prix actuel: {prix}. News récentes: {news}. Historique de tes erreurs passées: {memoire}. Analyse la situation et donne un conseil ACHAT ou VENTE avec une prévision."
-
-        # IA 1 : Gemini (Correction du nom du modèle ici)
-        # On utilise 'gemini-1.5-flash' qui est le nom standard actuel
+        # 2. Test News
+        news = stock.news
+        print(f"📰 Nombre de news trouvées : {len(news)}")
+        
+        # 3. Test IA
+        genai.configure(api_key=gemini_key)
         model = genai.GenerativeModel('gemini-1.5-flash')
-        analyse_gemini = model.generate_content(prompt).text
-        
-        # IA 2 : Groq (Llama 3) pour la contre-expertise
-        completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "Tu es un expert financier qui critique les analyses d'autres IA pour éviter les erreurs."},
-                {"role": "user", "content": f"Voici l'analyse de Gemini: {analyse_gemini}. Es-tu d'accord ? Donne ta décision finale (ACHAT/VENTE/ATTENTE)."}
-            ],
-            model="llama3-8b-8192",
-        )
-        analyse_finale = completion.choices[0].message.content
-
-        print(f"--- RAPPORT FINAL ---\n{analyse_finale}\n---------------------")
-        
-        # 3. Sauvegarder dans la mémoire
-        nouvelle_ligne = pd.DataFrame([[datetime.now(), ticker, "Analyse effectuée", prix, "En attente de vérification"]], 
-                                     columns=['date','ticker','prediction','prix_au_moment','erreur_constatee'])
-        nouvelle_ligne.to_csv('memoire.csv', mode='a', header=not os.path.exists('memoire.csv'), index=False)
+        print("🧠 Envoi à Gemini...")
+        response = model.generate_content(f"Analyse {ticker} à {prix}$").text
+        print(f"🤖 Réponse IA : {response[:100]}...")
 
     except Exception as e:
-        print(f"Erreur lors de l'analyse : {e}")
+        print(f"💥 LE SCRIPT A PLANTE ICI : {str(e)}")
 
-# Liste des entreprises à surveiller
-actions = ["NVDA", "AAPL", "TSLA"]
-for a in actions:
-    lancer_analyse(a)
-    time.sleep(2) # Petite pause pour ne pas saturer les APIs gratuites
+lancer_analyse("BTC-USD") # On teste le Bitcoin car il bouge 24h/24
