@@ -1,41 +1,42 @@
 import os
 import yfinance as yf
 import google.generativeai as genai
-from groq import Groq
 import pandas as pd
 from datetime import datetime
 
-print("--- DEMARRAGE DU DIAGNOSTIC ---")
+# Configuration ultra-stable
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+# Utilisation du nom de modèle le plus récent pour éviter l'erreur 404
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
-# Vérification des clés
-gemini_key = os.environ.get("GEMINI_API_KEY")
-groq_key = os.environ.get("GROQ_API_KEY")
+def job():
+    ticker = "BTC-USD" # On utilise le Bitcoin car il y a TOUJOURS des données
+    print(f"\n🚀 --- DEBUT DE L'ANALYSE POUR {ticker} ---")
+    
+    # 1. Récupération du prix
+    stock = yf.Ticker(ticker)
+    prix = stock.history(period="1d")['Close'].iloc[-1]
+    print(f"💰 PRIX ACTUEL : {prix} USD")
 
-if not gemini_key or not groq_key:
-    print("❌ ERREUR : Les clés API sont manquantes dans GitHub Secrets !")
-else:
-    print("✅ Clés API détectées.")
-
-def lancer_analyse(ticker):
-    print(f"\n🔍 Tentative sur : {ticker}")
+    # 2. Appel à l'IA
+    print("🧠 Appel à l'IA Gemini en cours...")
+    prompt = f"Le prix actuel du {ticker} est de {prix}$. Donne un conseil d'expert : ACHAT ou VENTE ?"
+    
     try:
-        # 1. Test Bourse
-        stock = yf.Ticker(ticker)
-        prix = stock.history(period="1d")['Close'].iloc[-1]
-        print(f"📈 Prix récupéré : {prix}$")
-
-        # 2. Test News
-        news = stock.news
-        print(f"📰 Nombre de news trouvées : {len(news)}")
-        
-        # 3. Test IA
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        print("🧠 Envoi à Gemini...")
-        response = model.generate_content(f"Analyse {ticker} à {prix}$").text
-        print(f"🤖 Réponse IA : {response[:100]}...")
-
+        reponse = model.generate_content(prompt).text
+        print("\n📢 --- CONSEIL DE L'AGENT ---")
+        print(reponse)
+        print("-----------------------------\n")
     except Exception as e:
-        print(f"💥 LE SCRIPT A PLANTE ICI : {str(e)}")
+        print(f"❌ Erreur IA : {e}")
+        reponse = "Erreur analyse"
 
-lancer_analyse("BTC-USD") # On teste le Bitcoin car il bouge 24h/24
+    # 3. Tentative de sauvegarde
+    try:
+        df = pd.DataFrame([[datetime.now(), ticker, prix, reponse[:50]]], columns=['date', 'ticker', 'prix', 'conseil'])
+        df.to_csv('memoire.csv', mode='a', header=not os.path.exists('memoire.csv'), index=False)
+        print("✅ Mémoire mise à jour avec succès.")
+    except Exception as e:
+        print(f"⚠️ Impossible d'écrire dans le CSV : {e}")
+
+job()
