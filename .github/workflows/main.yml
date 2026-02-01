@@ -1,0 +1,26 @@
+name: Agent Auto-Apprenant
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Toutes les 10 minutes
+  workflow_dispatch: # Permet de le lancer à la main pour tester
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Python
+        run: pip install yfinance google-generativeai groq pandas
+      - name: Run Agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python bot.py
+      - name: Commit Memory
+        run: |
+          git config --global user.name 'Agent-Boursier'
+          git config --global user.email 'bot@invest.com'
+          git add memoire.csv
+          git commit -m "Mise à jour de la mémoire" || echo "No changes"
+          git push
+          
