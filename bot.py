@@ -4,56 +4,57 @@ import google.generativeai as genai
 from groq import Groq
 import pandas as pd
 from datetime import datetime
-import time
 
-# Configuration des IA
+# Configuration
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 groq_client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
 def lancer_analyse(ticker):
-    print(f"Lancement de l'analyse pour {ticker}...")
+    print(f"--- Analyse en cours pour {ticker} ---")
+    stock = yf.Ticker(ticker)
     
-    try:
-        # 1. Récupérer les données boursières
-        stock = yf.Ticker(ticker)
-        prix = stock.history(period="1d")['Close'].iloc[-1]
-        news = stock.news[:2]
+    # 1. Récupérer le prix actuel
+    data = stock.history(period="1d")
+    if data.empty: return
+    prix_actuel = data['Close'].iloc[-1]
 
-        # 2. Charger la mémoire (si le fichier existe)
-        try:
-            memoire = pd.read_csv('memoire.csv').tail(5).to_string()
-        except:
-            memoire = "Aucun historique disponible."
+    # 2. Charger la mémoire pour apprendre
+    memoire_context = "Pas d'historique."
+    if os.path.exists('memoire.csv'):
+        df_mem = pd.read_csv('memoire.csv')
+        memoire_context = df_mem.tail(10).to_string()
 
-        prompt = f"Action: {ticker}, Prix actuel: {prix}. News récentes: {news}. Historique de tes erreurs passées: {memoire}. Analyse la situation et donne un conseil ACHAT ou VENTE avec une prévision."
+    # 3. Prompt pour l'IA
+    prompt = f"""
+    Action: {ticker} | Prix actuel: {prix_actuel}
+    Historique récent et erreurs passées: {memoire_context}
+    
+    Tâche: Analyse les news et le prix. Donne un conseil (ACHAT/VENTE) 
+    et explique pourquoi en te basant sur tes succès ou échecs passés.
+    """
 
-        # IA 1 : Gemini (Correction du nom du modèle ici)
-        # On utilise 'gemini-1.5-flash' qui est le nom standard actuel
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        analyse_gemini = model.generate_content(prompt).text
-        
-        # IA 2 : Groq (Llama 3) pour la contre-expertise
-        completion = groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "Tu es un expert financier qui critique les analyses d'autres IA pour éviter les erreurs."},
-                {"role": "user", "content": f"Voici l'analyse de Gemini: {analyse_gemini}. Es-tu d'accord ? Donne ta décision finale (ACHAT/VENTE/ATTENTE)."}
-            ],
-            model="llama3-8b-8192",
-        )
-        analyse_finale = completion.choices[0].message.content
+    # Appel Gemini
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    res_gemini = model.generate_content(prompt).text
+    
+    # Contre-expertise Groq
+    res_finale = groq_client.chat.completions.create(
+        messages=[{"role": "user", "content": f"Analyse cette prédiction : {res_gemini}. Est-elle logique ? Réponds brièvement."}],
+        model="llama3-8b-8192",
+    ).choices[0].message.content
 
-        print(f"--- RAPPORT FINAL ---\n{analyse_finale}\n---------------------")
-        
-        # 3. Sauvegarder dans la mémoire
-        nouvelle_ligne = pd.DataFrame([[datetime.now(), ticker, "Analyse effectuée", prix, "En attente de vérification"]], 
-                                     columns=['date','ticker','prediction','prix_au_moment','erreur_constatee'])
-        nouvelle_ligne.to_csv('memoire.csv', mode='a', header=not os.path.exists('memoire.csv'), index=False)
+    print(f"Décision : {res_finale}")
 
-    except Exception as e:
-        print(f"Erreur lors de l'analyse : {e}")
+    # 4. Sauvegarde dans la mémoire
+    nouveau_log = pd.DataFrame([{
+        'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+        'ticker': ticker,
+        'prix': prix_actuel,
+        'analyse': res_finale[:100] # On garde un résumé
+    }])
+    
+    nouveau_log.to_csv('memoire.csv', mode='a', header=not os.path.exists('memoire.csv'), index=False)
 
-# Liste des entreprises à surveiller
-actions = ["NVDA", "AAPL", "TSLA"]
-for a in actions:
-    lancer_analyse(a)
-    time.sleep(2) # Petite pause pour ne pas saturer les APIs gratuites
+# Test sur les leaders
+for t in ["NVDA", "AAPL", "TSLA"]:
+    lancer_analyse(t)
