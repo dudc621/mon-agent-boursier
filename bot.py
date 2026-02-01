@@ -21,7 +21,7 @@ def lancer_analyse(ticker):
     prompt = f"Action: {ticker}, Prix: {prix}. News: {news}. Historique erreurs: {memoire}. Analyse et dis: ACHAT ou VENTE avec une prévision de prix."
 
     # IA 1 : Gemini
-    analyse_gemini = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt).text
+    analyse_gemini = genai.GenerativeModel('gemini-pro').generate_content(prompt).text
     
     # IA 2 : Groq (Llama 3)
     analyse_groq = groq_client.chat.completions.create(
