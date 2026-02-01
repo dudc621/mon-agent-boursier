@@ -16,3 +16,19 @@ if st.sidebar.button('Rafraîchir les données'):
     
     # Tableau de la mémoire
     st.write("Mémoire de l'IA (Apprentissage) :", df)
+import streamlit as st
+import pandas as pd
+
+# Chargement de la mémoire
+df = pd.read_csv('memoire.csv')
+
+# Calcul du succès (Exemple simple : prix actuel vs prix au moment de l'analyse)
+st.subheader("📈 Performance de l'IA")
+
+# On simule un calcul de gain/perte
+df['performance'] = df['prix'].pct_change() * 100
+
+win_rate = (df['performance'] > 0).mean() * 100
+st.metric("Taux de précision actuel", f"{win_rate:.2f}%")
+
+st.line_chart(df.set_index('date')['performance'])
