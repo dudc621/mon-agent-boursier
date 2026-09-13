@@ -4776,3 +4776,4 @@ date,ticker,prediction,prix_au_moment,erreur_constatee
 2026-09-13 11:53:26.028905,BTC-USD,76758.96875,Erreur: 404 models/gemini-pro is not found for API version
 2026-09-13 15:10:07.947717,BTC-USD,77100.7109375,Erreur: 404 models/gemini-pro is not found for API version
 2026-09-13 18:08:40.495199,BTC-USD,77289.6875,Erreur: 404 models/gemini-pro is not found for API version
+2026-09-13 20:43:25.906506,BTC-USD,77279.5234375,Erreur: 404 models/gemini-pro is not found for API version
